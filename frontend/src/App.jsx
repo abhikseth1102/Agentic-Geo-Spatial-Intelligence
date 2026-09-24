@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle } from 'react-leaflet';
+import React, { useState, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, Polygon } from 'react-leaflet';
 import axios from 'axios';
 import 'leaflet/dist/leaflet.css';
 import './index.css';
@@ -31,28 +31,52 @@ const RadarIcon = L.divIcon({
   iconAnchor: [20, 20]
 });
 
+// Helper for H3-style Hexbins
+const generateHexagons = () => {
+  const hexes = [];
+  const centerLat = 57.2;
+  const centerLon = 11.5;
+  for(let i=0; i<40; i++) {
+      const hLat = centerLat + (Math.random() - 0.5) * 2.0;
+      const hLon = centerLon + (Math.random() - 0.5) * 3.5;
+      const points = [];
+      const r = 0.05; // size of hex
+      for(let j=0; j<6; j++) {
+          const theta = (j * Math.PI) / 3;
+          points.push([hLat + r * Math.sin(theta), hLon + r * Math.cos(theta) * 1.8]);
+      }
+      // Simulate congestion zones
+      const isDense = Math.random() > 0.7;
+      const color = isDense ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.15)'; // Red or Green
+      hexes.push({ points, color });
+  }
+  return hexes;
+};
+
 function App() {
   const [loading, setLoading] = useState(false);
   const [evaluation, setEvaluation] = useState(null);
+  const [hexagons] = useState(generateHexagons());
+  
+  // Animation state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const simRef = useRef(null);
 
-  // Mocked state of a vessel approaching a high-risk zone in Kattegat Strait
   const [telemetry, setTelemetry] = useState({
     mmsi: "MMSI_219019621",
     lat: 57.2,
     lon: 11.5,
-    distance_nm: 10.0,
-    speed: 3.5,
-    congestion: 98,
-    wind: 38.5,
-    waves: 4.8,
+    distance_nm: 250.0,
+    speed: 14.5,
+    congestion: 20,
+    wind: 15.0,
+    waves: 1.2,
     destination: "Gothenburg, SE"
   });
 
-  // Calculate dynamic storm position based on slider distance (1 degree lat = ~60 nm)
   const storm_lat = telemetry.lat - (telemetry.distance_nm / 60.0);
   const storm_lon = telemetry.lon;
 
-  // Simple parser to render markdown bullets and bold text from the backend
   const renderMarkdown = (text) => {
     return text.split('\n').map((line, i) => {
       if (line.trim().startsWith('- ')) {
@@ -62,12 +86,15 @@ function App() {
     });
   };
 
-  const handleEvaluate = async () => {
+  const handleEvaluate = async (currentTelemetry = telemetry) => {
     setLoading(true);
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-      const response = await axios.post(`${API_URL}/api/evaluate_route`, telemetry);
+      const response = await axios.post(`${API_URL}/api/evaluate_route`, currentTelemetry);
       setEvaluation(response.data);
+      if (response.data.status === 'Rerouted') {
+        setIsPlaying(false); // Stop simulation if rerouted
+      }
     } catch (error) {
       console.error("Error evaluating route:", error);
       setEvaluation({
@@ -76,33 +103,58 @@ function App() {
         delay_risk_percent: 0,
         fuel_estimate_tons: 0
       });
+      setIsPlaying(false);
     }
     setLoading(false);
   };
 
-  // Physics simulation for dynamic slider linking
-  const handleDistanceChange = (e) => {
-    const dist = parseFloat(e.target.value);
-    
-    // Congestion increases as ships bunch up to avoid storm/seek harbor
+  const updatePhysics = (dist) => {
     const newCongestion = Math.min(100, Math.max(0, Math.round(100 - (dist / 3.0))));
-    
-    // Wind increases exponentially as you approach the eye of the hurricane
     const newWind = Math.round(15 + 105 * Math.pow(Math.E, -dist / 50.0));
+    const newWaves = Math.round(1.0 + 8.0 * Math.pow(Math.E, -dist / 60.0));
     
-    setTelemetry({
+    return {
       ...telemetry,
       distance_nm: dist,
       congestion: newCongestion,
-      wind: newWind
-    });
+      wind: newWind,
+      waves: newWaves
+    };
   };
 
-  // Helper for drawing arrows on routes
+  const handleDistanceChange = (e) => {
+    setTelemetry(updatePhysics(parseFloat(e.target.value)));
+    setEvaluation(null); // reset evaluation when manually moved
+  };
+
+  // Playback Simulation Logic
+  useEffect(() => {
+    if (isPlaying) {
+      simRef.current = setInterval(() => {
+        setTelemetry((prev) => {
+          const nextDist = prev.distance_nm - 5;
+          if (nextDist <= 140 && !evaluation) {
+            // Auto-trigger evaluation when entering danger zone
+            const updated = updatePhysics(nextDist);
+            handleEvaluate(updated);
+            return updated;
+          }
+          if (nextDist <= 10) {
+            setIsPlaying(false);
+            return prev;
+          }
+          return updatePhysics(nextDist);
+        });
+      }, 300);
+    } else {
+      clearInterval(simRef.current);
+    }
+    return () => clearInterval(simRef.current);
+  }, [isPlaying, evaluation]);
+
   const RouteSegment = ({ p1, p2, color }) => {
     const midLat = (p1[0] + p2[0]) / 2;
     const midLon = (p1[1] + p2[1]) / 2;
-    // Calculate angle for screen rotation (lat increases going UP, lon increases going RIGHT)
     const angle = Math.atan2(p1[0] - p2[0], p2[1] - p1[1]) * (180 / Math.PI);
     
     const arrowIcon = L.divIcon({
@@ -134,32 +186,47 @@ function App() {
 
   return (
     <div className="dashboard-container">
-      <header className="header">
-        <h1>Agentic Geo-Spatial Intelligence</h1>
-        <div className="header-status">
-          <div className="status-dot"></div>
-          Live Orchestration Engine
+      <header className="header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+        <div>
+          <h1>Agentic Geo-Spatial Intelligence</h1>
+          <div className="header-status">
+            <div className={`status-dot ${isPlaying ? 'pulse' : ''}`}></div>
+            {isPlaying ? 'Live Simulation Active' : 'Live Orchestration Engine'}
+          </div>
         </div>
+        <button 
+          className="btn-primary" 
+          style={{background: isPlaying ? 'var(--accent-red)' : 'var(--accent-blue)'}}
+          onClick={() => { setIsPlaying(!isPlaying); setEvaluation(null); }}
+        >
+          {isPlaying ? '⏹ Stop Playback' : '▶ Play Simulation'}
+        </button>
       </header>
 
       <main className="main-content">
         <div className="map-container">
           <MapContainer center={[57.2, 11.5]} zoom={7} scrollWheelZoom={true}>
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              attribution='&copy; OpenStreetMap contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             
-            {/* Dynamic Hurricane Weather Overlay */}
-            <Circle 
-              center={[storm_lat, storm_lon]} 
-              radius={75 * 1852} /* 75 nm danger radius */
-              pathOptions={{ color: 'var(--accent-red)', fillColor: 'var(--accent-red)', fillOpacity: 0.2 }}
-            >
-              <Popup>Simulated Hurricane Center</Popup>
+            {/* Global Fleet H3 Hexbin Layer */}
+            {hexagons.map((hex, i) => (
+              <Polygon key={`hex-${i}`} positions={hex.points} pathOptions={{ color: hex.color, fillColor: hex.color, fillOpacity: 0.4, weight: 1 }} />
+            ))}
+            
+            {/* Multi-Variate Weather Overlays */}
+            {/* Outer Gale Winds */}
+            <Circle center={[storm_lat, storm_lon]} radius={150 * 1852} pathOptions={{ color: 'var(--accent-yellow)', fillColor: 'var(--accent-yellow)', fillOpacity: 0.1, dashArray: "10, 10" }} />
+            {/* High Waves Zone */}
+            <Circle center={[storm_lat, storm_lon]} radius={100 * 1852} pathOptions={{ color: '#f97316', fillColor: '#f97316', fillOpacity: 0.2 }} />
+            {/* Hurricane Eye */}
+            <Circle center={[storm_lat, storm_lon]} radius={75 * 1852} pathOptions={{ color: 'var(--accent-red)', fillColor: 'var(--accent-red)', fillOpacity: 0.4 }}>
+              <Popup>Simulated Hurricane Center (Cat 4)</Popup>
             </Circle>
 
-            {/* Current Vessel Position with Radar Pulse */}
+            {/* Current Vessel */}
             <Marker position={[telemetry.lat, telemetry.lon]} icon={RadarIcon}>
               <Popup>
                 <strong>{telemetry.mmsi}</strong><br/>
@@ -168,11 +235,10 @@ function App() {
               </Popup>
             </Marker>
             
-            {/* Original Planned Route (Red) with Arrows */}
+            {/* Routes */}
             <RouteSegment p1={plannedP1} p2={plannedP2} color="rgba(239, 68, 68, 0.7)" />
             <RouteSegment p1={plannedP2} p2={plannedP3} color="rgba(239, 68, 68, 0.7)" />
 
-            {/* Reroute (Green) with Arrows - Show only if evaluated and rerouted */}
             {evaluation && evaluation.status === "Rerouted" && (
               <>
                 <RouteSegment p1={rerouteP1} p2={rerouteP2} color="#10b981" />
@@ -189,20 +255,16 @@ function App() {
           )}
         </div>
 
-        <aside className="panel">
+        <aside className="panel" style={{overflowY: 'auto'}}>
           <div>
             <h2 className="panel-title">Simulation Controls</h2>
             <div className="slider-group">
               <label>Distance to Storm: {telemetry.distance_nm} nm</label>
-              <input type="range" min="0" max="300" step="1" value={telemetry.distance_nm} onChange={handleDistanceChange} />
+              <input type="range" min="0" max="300" step="1" value={telemetry.distance_nm} onChange={handleDistanceChange} disabled={isPlaying} />
             </div>
             <div className="slider-group">
               <label>Congestion Index: {telemetry.congestion}</label>
-              <input type="range" min="0" max="100" step="1" value={telemetry.congestion} onChange={(e) => setTelemetry({...telemetry, congestion: parseInt(e.target.value)})} />
-            </div>
-            <div className="slider-group">
-              <label>Wind Speed: {telemetry.wind} kts</label>
-              <input type="range" min="0" max="150" step="0.5" value={telemetry.wind} onChange={(e) => setTelemetry({...telemetry, wind: parseFloat(e.target.value)})} />
+              <input type="range" min="0" max="100" step="1" value={telemetry.congestion} readOnly />
             </div>
           </div>
           
@@ -210,9 +272,6 @@ function App() {
 
           <div>
             <h2 className="panel-title">Vessel Telemetry</h2>
-            <p style={{color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '1rem'}}>
-              ID: {telemetry.mmsi}
-            </p>
             <div className="telemetry-grid">
               <div className="metric-card">
                 <div className="metric-label">SOG (Knots)</div>
@@ -220,7 +279,7 @@ function App() {
               </div>
               <div className="metric-card">
                 <div className="metric-label">Congestion</div>
-                <div className="metric-value">{telemetry.congestion} <span style={{fontSize:'0.875rem', color:'var(--accent-red)'}}>High</span></div>
+                <div className="metric-value">{telemetry.congestion}</div>
               </div>
               <div className="metric-card">
                 <div className="metric-label">Wind (Kts)</div>
@@ -247,12 +306,12 @@ function App() {
                     </div>
                   </div>
                   <div className="metric-card">
-                    <div className="metric-label">Est. Fuel Burn</div>
+                    <div className="metric-label">Est. Fuel</div>
                     <div className="metric-value">{evaluation.fuel_estimate_tons} T</div>
                   </div>
                   {evaluation.status === 'Rerouted' && (
                     <div className="metric-card" style={{gridColumn: 'span 2'}}>
-                      <div className="metric-label">Fuel Saved (Avoiding Storm Resistance)</div>
+                      <div className="metric-label">Fuel Saved (Avoiding Storm)</div>
                       <div className="metric-value" style={{color: '#10b981'}}>
                         + {Math.round(evaluation.fuel_estimate_tons * 0.42)} Tons
                       </div>
@@ -262,7 +321,7 @@ function App() {
 
                 <div className={`alert-box ${evaluation.status === 'Safe' ? 'safe' : ''}`}>
                   <div className="alert-title">
-                    {evaluation.status === 'Rerouted' ? '⚠️ Autonomous Reroute Executed' : '✅ Route Safe'}
+                    {evaluation.status === 'Rerouted' ? '⚠️ AI Reroute Executed' : '✅ Route Safe'}
                   </div>
                   <div className="alert-content">
                     {evaluation.status === "Rerouted" && evaluation.alert.includes('- ') ? (
@@ -272,45 +331,19 @@ function App() {
                     )}
                   </div>
                 </div>
-
-                {evaluation.status === 'Rerouted' && (
-                  <div style={{marginTop: '1rem', padding: '1rem', background: 'var(--glass-bg)', borderRadius: '8px', border: '1px solid var(--glass-border)'}}>
-                    <h3 style={{fontSize: '0.875rem', marginBottom: '0.75rem', color: 'var(--text-secondary)'}}>Model Explainability (SHAP)</h3>
-                    <div style={{marginBottom: '0.5rem'}}>
-                      <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem'}}>
-                        <span>Distance To Storm</span>
-                        <span style={{color: 'var(--accent-red)'}}>94.0%</span>
-                      </div>
-                      <div style={{width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px'}}>
-                        <div style={{width: '94%', height: '100%', background: 'var(--accent-red)', borderRadius: '3px'}}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem'}}>
-                        <span>Congestion Index</span>
-                        <span style={{color: 'var(--accent-yellow)'}}>6.0%</span>
-                      </div>
-                      <div style={{width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px'}}>
-                        <div style={{width: '6%', height: '100%', background: 'var(--accent-yellow)', borderRadius: '3px'}}></div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </>
             ) : (
               <p style={{color: 'var(--text-secondary)', fontSize: '0.875rem'}}>
-                Awaiting orchestration engine execution.
+                {isPlaying ? 'AI is monitoring trajectory...' : 'Awaiting orchestration engine execution.'}
               </p>
             )}
           </div>
-
-          <button 
-            className="btn-primary" 
-            onClick={handleEvaluate}
-            disabled={loading}
-          >
-            {loading ? <span className="loader"></span> : "Trigger AI Orchestration"}
-          </button>
+          
+          <div style={{marginTop: '1rem'}}>
+            <button className="btn-primary" onClick={() => handleEvaluate(telemetry)} disabled={loading || isPlaying}>
+              {loading ? <span className="loader"></span> : "Manual AI Evaluation"}
+            </button>
+          </div>
         </aside>
       </main>
     </div>
