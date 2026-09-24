@@ -1,0 +1,11 @@
+pandas
+geopandas
+h3
+scikit-learn
+xgboost
+fastapi
+uvicorn
+langgraph
+langchain-google-genai
+python-dotenv
+haversine

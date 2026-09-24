@@ -1,0 +1,28 @@
+# Python Virtual Environments
+venv/
+venv2/
+__pycache__/
+*.pyc
+
+# Massive Datasets & Models
+data/AIS_2023_08_28.csv
+data/AIS_2023_08_28.zip
+data/AIS_2023_08_29.zip
+data/AIS_2023_08_30.zip
+data/AIS_Real_Processed.csv
+data/AIS_Raw_Excel_Friendly.csv
+data/AIS_Idalia_Simulated.csv
+data/hurdat2.txt
+
+# Node Modules (Frontend)
+frontend/node_modules/
+frontend/dist/
+.DS_Store
+
+# Keep the model weights if they are small enough (< 50MB), otherwise ignore them
+# data/xgb_delay_model.json
+
+# Environment Variables
+.env
+backend/.env
+*.env
