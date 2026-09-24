@@ -65,7 +65,8 @@ function App() {
   const handleEvaluate = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost:8080/api/evaluate_route', telemetry);
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const response = await axios.post(`${API_URL}/api/evaluate_route`, telemetry);
       setEvaluation(response.data);
     } catch (error) {
       console.error("Error evaluating route:", error);
