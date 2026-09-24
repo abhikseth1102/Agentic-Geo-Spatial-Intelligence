@@ -89,7 +89,8 @@ function App() {
   const handleEvaluate = async (currentTelemetry = telemetry) => {
     setLoading(true);
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const API_URL = rawUrl.replace(/\/$/, "");
       const response = await axios.post(`${API_URL}/api/evaluate_route`, currentTelemetry);
       setEvaluation(response.data);
       if (response.data.status === 'Rerouted') {
