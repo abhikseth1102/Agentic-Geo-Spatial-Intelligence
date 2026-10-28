@@ -1,3 +1,5 @@
+import WorkspaceDepth from "./components/WorkspaceDepth";
+import MotionControls from "./components/MotionControls";
 import './observatory.css';
 import { chartGrid, axis } from "./components/ChartConfig";
 import { useEffect, useState } from "react";
@@ -189,6 +191,8 @@ function App() {
   const m = data?.metrics;
   return (
     <div className="app">
+      <MotionControls />
+      <WorkspaceDepth />
       <aside className="sidebar">
         <a
           className="brand"

@@ -1,8 +1,10 @@
+import { useReveal } from "../lib/useReveal";
 import { ResponsiveContainer } from "recharts";
 import { BookOpen } from "lucide-react";
 export function Panel({ title, subtitle, children, action, className = "" }) {
+  const reveal = useReveal();
   return (
-    <section className={`panel ${className}`}>
+    <section ref={reveal} className={`panel ${className}`}>
       <div className="panel-head">
         <div>
           <h3>{title}</h3>
@@ -32,8 +34,9 @@ export function Notice({ children }) {
   );
 }
 export function Stat({ label, value, unit, note, icon: Icon, tone }) {
+  const reveal = useReveal();
   return (
-    <div className="stat">
+    <div ref={reveal} className="stat">
       <div className="stat-top">
         {label}
         <Icon size={17} />

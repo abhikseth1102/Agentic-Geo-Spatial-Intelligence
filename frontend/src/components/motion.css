@@ -1,0 +1,22 @@
+/* Depth is transient: content remains visible and native scrolling stays intact. */
+.motion-control {position:fixed; right:20px; bottom:16px; z-index:600; border:1px solid #dbe5f1; background:#ffffffef; color:#617b9e; border-radius:24px; padding:8px 13px; font-size:10px; box-shadow:0 4px 18px #29476b12;}
+.panel {box-shadow:0 5px 18px #233e6505,0 1px 2px #233e6503;}
+.stat {background:linear-gradient(145deg,#fff 65%,#f7faff);}
+.page-heading {position:relative;}
+.page-heading:after {content:''; position:absolute; bottom:-12px; left:0; width:46px; height:2px; background:#91afd5; border-radius:2px;}
+@media(prefers-reduced-motion:no-preference) {
+ html:not([data-motion="off"]) .stat {transition:transform .35s cubic-bezier(.2,.7,.2,1),box-shadow .35s,border-color .35s;}
+ html:not([data-motion="off"]) nav button {transition:background .22s,color .22s,transform .22s;}
+ html:not([data-motion="off"]) .button {transition:transform .2s,box-shadow .2s,background .2s;}
+ html:not([data-motion="off"]) .button:active {transform:translateY(1px);}
+ html:not([data-motion="off"]) .page-heading h1 {animation:heading-arrive .6s cubic-bezier(.2,.7,.2,1) both;}
+ @media(hover:hover) and (pointer:fine) {
+  html:not([data-motion="off"]) .stat:hover {transform:perspective(1100px) translateY(-4px) rotateX(1deg); border-color:#c7d8ee; box-shadow:0 16px 30px -15px #315b8b42;}
+  html:not([data-motion="off"]) nav button:hover {transform:translateX(2px);}
+  html:not([data-motion="off"]) .button:hover {transform:translateY(-1px); box-shadow:0 5px 12px #29476b12;}
+ }
+}
+@keyframes heading-arrive {from {opacity:.5; transform:translateY(10px)} to {opacity:1; transform:none}}
+@media(prefers-reduced-motion:reduce) {.motion-control {display:none}}
+@media(max-width:700px) {.motion-control {right:12px; bottom:10px; padding:7px 10px; font-size:9px}}
+@media print {.motion-control {display:none}}
