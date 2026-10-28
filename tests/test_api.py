@@ -26,6 +26,26 @@ def test_health_and_dataset_counts(client):
     assert sum(x["observations"] for x in d["cells"]) == d["metrics"]["observations"]
 
 
+def test_deployed_frontend_cors(client):
+    origin = "https://agentic-geo-spatial-intelligence.vercel.app"
+    headers = {
+        "Origin": origin,
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "content-type",
+    }
+    response = client.options("/api/overview", headers=headers)
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    response = client.get("/api/overview", headers={"Origin": origin})
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+    headers["Origin"] = "https://unrelated.example"
+    response = client.options("/api/overview", headers=headers)
+    assert response.status_code == 400
+    assert "access-control-allow-origin" not in response.headers
+
+
+
 def test_filters_and_replay(client):
     data = client.get("/api/overview?vessel_type=Cargo&hour=4").json()
     assert all(

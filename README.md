@@ -108,3 +108,9 @@ See `output/documents`, `docs/REVIEW_GUIDE.md`, `docs/REQUIREMENTS_MAP.md`, and 
 ## Attribution
 
 AIS: NOAA/BOEM MarineCadastre; storm history: NOAA NHC HURDAT2. Natural Earth 1:110m land polygons are public domain and bundled for offline context; they are too coarse for navigation. Optional OpenStreetMap tiles follow OSM attribution and require network access. Fonts fall back to system sans-serif offline. Citations and data limitations are available in the app and research notes.
+
+## Separate Vercel and Render deployment
+
+The Vercel frontend uses `VITE_API_URL=https://agentic-geo-spatial-intelligence.onrender.com` at build time. The backend allows the exact production frontend origin `https://agentic-geo-spatial-intelligence.vercel.app` plus local development origins. Set `ALLOWED_ORIGINS` to a comma-separated list to override these origins when using another domain. Browser preflight requests and API responses must both permit the frontend origin.
+
+For a native Render Python service, use `pip install -r requirements.txt && python scripts/train_benchmark.py` as the build command and `python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT` as the start command, from the repository root. The training step recreates the excluded model artifact; `/api/health` should report both `status: ready` and `model_ready: true`. A Docker deployment already performs training during its build. Redeploy after changing either service configuration.

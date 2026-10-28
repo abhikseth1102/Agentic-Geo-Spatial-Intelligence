@@ -324,11 +324,11 @@ function App() {
               <h3>
                 {busy
                   ? "Reading the research dataset…"
-                  : "The dataset is not available."}
+                  : "The data service could not be reached."}
               </h3>
               <p>
-                Start the backend and build the dataset using the README
-                instructions.
+                Please retry in a moment. If the problem continues, check the
+                backend service and its connection settings.
               </p>
             </div>
           ) : (

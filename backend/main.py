@@ -4,6 +4,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from functools import lru_cache
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 import uuid
@@ -60,7 +61,15 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        origin.strip().rstrip("/")
+        for origin in os.getenv(
+            "ALLOWED_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,"
+            "https://agentic-geo-spatial-intelligence.vercel.app",
+        ).split(",")
+        if origin.strip()
+    ],
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type"],
 )
