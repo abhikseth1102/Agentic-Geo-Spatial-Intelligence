@@ -26,3 +26,9 @@ frontend/dist/
 .env
 backend/.env
 *.env
+.venv/
+.runtime/
+data/atlas/*.sqlite*
+data/atlas/*.joblib
+output/qa/
+tmp/

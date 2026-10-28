@@ -1,3 +1,5 @@
+> Historical prototype notes. Several claims below were superseded or corrected. Use `docs/REVIEW_GUIDE.md` for the current review and `docs/LEGACY_NOTES.md` for the corrections.
+
 # Review 1: Project Presentation Notes
 
 This document contains everything you need to confidently explain your project, the machine learning architecture, your dataset, and your future roadmap to your professor.

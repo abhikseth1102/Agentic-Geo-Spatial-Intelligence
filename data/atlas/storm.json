@@ -1,0 +1,380 @@
+[
+  {
+    "timestamp": "2023-08-26T12:00:00",
+    "lat": 20.8,
+    "lon": -86.1,
+    "wind_knots": 25,
+    "status": "TD"
+  },
+  {
+    "timestamp": "2023-08-26T18:00:00",
+    "lat": 21.3,
+    "lon": -86.2,
+    "wind_knots": 25,
+    "status": "TD"
+  },
+  {
+    "timestamp": "2023-08-27T00:00:00",
+    "lat": 21.1,
+    "lon": -86.4,
+    "wind_knots": 30,
+    "status": "TD"
+  },
+  {
+    "timestamp": "2023-08-27T06:00:00",
+    "lat": 20.5,
+    "lon": -86.8,
+    "wind_knots": 30,
+    "status": "TD"
+  },
+  {
+    "timestamp": "2023-08-27T12:00:00",
+    "lat": 19.9,
+    "lon": -86.3,
+    "wind_knots": 35,
+    "status": "TS"
+  },
+  {
+    "timestamp": "2023-08-27T18:00:00",
+    "lat": 19.9,
+    "lon": -85.8,
+    "wind_knots": 40,
+    "status": "TS"
+  },
+  {
+    "timestamp": "2023-08-28T00:00:00",
+    "lat": 19.8,
+    "lon": -85.4,
+    "wind_knots": 45,
+    "status": "TS"
+  },
+  {
+    "timestamp": "2023-08-28T06:00:00",
+    "lat": 19.9,
+    "lon": -85.2,
+    "wind_knots": 55,
+    "status": "TS"
+  },
+  {
+    "timestamp": "2023-08-28T12:00:00",
+    "lat": 20.6,
+    "lon": -85.2,
+    "wind_knots": 55,
+    "status": "TS"
+  },
+  {
+    "timestamp": "2023-08-28T18:00:00",
+    "lat": 21.2,
+    "lon": -85.2,
+    "wind_knots": 60,
+    "status": "TS"
+  },
+  {
+    "timestamp": "2023-08-29T00:00:00",
+    "lat": 21.8,
+    "lon": -85.1,
+    "wind_knots": 60,
+    "status": "TS"
+  },
+  {
+    "timestamp": "2023-08-29T06:00:00",
+    "lat": 22.6,
+    "lon": -85.0,
+    "wind_knots": 65,
+    "status": "HU"
+  },
+  {
+    "timestamp": "2023-08-29T12:00:00",
+    "lat": 23.8,
+    "lon": -84.8,
+    "wind_knots": 70,
+    "status": "HU"
+  },
+  {
+    "timestamp": "2023-08-29T18:00:00",
+    "lat": 25.3,
+    "lon": -84.8,
+    "wind_knots": 80,
+    "status": "HU"
+  },
+  {
+    "timestamp": "2023-08-30T00:00:00",
+    "lat": 26.9,
+    "lon": -84.7,
+    "wind_knots": 90,
+    "status": "HU"
+  },
+  {
+    "timestamp": "2023-08-30T06:00:00",
+    "lat": 28.3,
+    "lon": -84.5,
+    "wind_knots": 105,
+    "status": "HU"
+  },
+  {
+    "timestamp": "2023-08-30T09:00:00",
+    "lat": 29.1,
+    "lon": -84.1,
+    "wind_knots": 115,
+    "status": "HU"
+  },
+  {
+    "timestamp": "2023-08-30T11:45:00",
+    "lat": 29.9,
+    "lon": -83.6,
+    "wind_knots": 100,
+    "status": "HU"
+  },
+  {
+    "timestamp": "2023-08-30T12:00:00",
+    "lat": 30.0,
+    "lon": -83.5,
+    "wind_knots": 100,
+    "status": "HU"
+  },
+  {
+    "timestamp": "2023-08-30T18:00:00",
+    "lat": 31.5,
+    "lon": -82.5,
+    "wind_knots": 60,
+    "status": "TS"
+  },
+  {
+    "timestamp": "2023-08-31T00:00:00",
+    "lat": 32.7,
+    "lon": -80.9,
+    "wind_knots": 50,
+    "status": "TS"
+  },
+  {
+    "timestamp": "2023-08-31T06:00:00",
+    "lat": 33.5,
+    "lon": -78.9,
+    "wind_knots": 50,
+    "status": "TS"
+  },
+  {
+    "timestamp": "2023-08-31T12:00:00",
+    "lat": 33.7,
+    "lon": -77.0,
+    "wind_knots": 55,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-08-31T18:00:00",
+    "lat": 33.6,
+    "lon": -74.6,
+    "wind_knots": 55,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-01T00:00:00",
+    "lat": 33.4,
+    "lon": -72.3,
+    "wind_knots": 55,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-01T06:00:00",
+    "lat": 32.7,
+    "lon": -70.5,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-01T12:00:00",
+    "lat": 32.3,
+    "lon": -68.8,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-01T18:00:00",
+    "lat": 32.1,
+    "lon": -67.1,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-02T00:00:00",
+    "lat": 31.9,
+    "lon": -65.7,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-02T06:00:00",
+    "lat": 31.8,
+    "lon": -64.7,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-02T12:00:00",
+    "lat": 31.8,
+    "lon": -63.9,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-02T18:00:00",
+    "lat": 31.8,
+    "lon": -63.1,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-03T00:00:00",
+    "lat": 32.0,
+    "lon": -62.2,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-03T06:00:00",
+    "lat": 32.5,
+    "lon": -61.3,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-03T12:00:00",
+    "lat": 33.4,
+    "lon": -60.5,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-03T18:00:00",
+    "lat": 34.9,
+    "lon": -59.7,
+    "wind_knots": 55,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-04T00:00:00",
+    "lat": 36.2,
+    "lon": -58.9,
+    "wind_knots": 60,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-04T06:00:00",
+    "lat": 37.6,
+    "lon": -58.0,
+    "wind_knots": 60,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-04T12:00:00",
+    "lat": 39.2,
+    "lon": -57.5,
+    "wind_knots": 55,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-04T18:00:00",
+    "lat": 40.5,
+    "lon": -57.9,
+    "wind_knots": 55,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-05T00:00:00",
+    "lat": 41.1,
+    "lon": -58.7,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-05T06:00:00",
+    "lat": 41.6,
+    "lon": -59.1,
+    "wind_knots": 50,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-05T12:00:00",
+    "lat": 42.2,
+    "lon": -59.3,
+    "wind_knots": 45,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-05T18:00:00",
+    "lat": 42.6,
+    "lon": -59.8,
+    "wind_knots": 40,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-06T00:00:00",
+    "lat": 42.6,
+    "lon": -60.5,
+    "wind_knots": 35,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-06T06:00:00",
+    "lat": 42.6,
+    "lon": -61.4,
+    "wind_knots": 35,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-06T12:00:00",
+    "lat": 42.6,
+    "lon": -62.0,
+    "wind_knots": 35,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-06T18:00:00",
+    "lat": 42.6,
+    "lon": -62.8,
+    "wind_knots": 35,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-07T00:00:00",
+    "lat": 42.9,
+    "lon": -62.9,
+    "wind_knots": 30,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-07T06:00:00",
+    "lat": 43.0,
+    "lon": -62.1,
+    "wind_knots": 30,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-07T12:00:00",
+    "lat": 43.2,
+    "lon": -61.1,
+    "wind_knots": 30,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-07T18:00:00",
+    "lat": 43.6,
+    "lon": -60.1,
+    "wind_knots": 30,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-08T00:00:00",
+    "lat": 44.3,
+    "lon": -59.3,
+    "wind_knots": 30,
+    "status": "EX"
+  },
+  {
+    "timestamp": "2023-09-08T06:00:00",
+    "lat": 45.2,
+    "lon": -58.3,
+    "wind_knots": 30,
+    "status": "EX"
+  }
+]

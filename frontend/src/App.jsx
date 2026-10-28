@@ -1,352 +1,894 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, Polygon } from 'react-leaflet';
-import axios from 'axios';
-import 'leaflet/dist/leaflet.css';
-import './index.css';
-
-// Fix leaflet icon issue in react
-import L from 'leaflet';
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-
-const RadarIcon = L.divIcon({
-  className: 'radar-marker',
-  html: `
-    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: var(--bg-dark); border-radius: 50%; border: 2px solid var(--accent-blue); box-shadow: 0 0 15px var(--accent-blue);">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M2 21c4 0 7-2 9-2s5 2 9 2" />
-        <path d="M3 17h18l-1.5-6h-15L3 17z" />
-        <path d="M10 11V5h4v6" />
-      </svg>
-    </div>
-    <div class="radar-pulse"></div>
-  `,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20]
-});
-
-// Helper for H3-style Hexbins
-const generateHexagons = () => {
-  const hexes = [];
-  const centerLat = 57.2;
-  const centerLon = 11.5;
-  for(let i=0; i<40; i++) {
-      const hLat = centerLat + (Math.random() - 0.5) * 2.0;
-      const hLon = centerLon + (Math.random() - 0.5) * 3.5;
-      const points = [];
-      const r = 0.05; // size of hex
-      for(let j=0; j<6; j++) {
-          const theta = (j * Math.PI) / 3;
-          points.push([hLat + r * Math.sin(theta), hLon + r * Math.cos(theta) * 1.8]);
-      }
-      // Simulate congestion zones
-      const isDense = Math.random() > 0.7;
-      const color = isDense ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.15)'; // Red or Green
-      hexes.push({ points, color });
-  }
-  return hexes;
-};
-
+import './observatory.css';
+import { chartGrid, axis } from "./components/ChartConfig";
+import { useEffect, useState } from "react";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ScatterChart,
+  Scatter,
+  LineChart,
+  Line,
+} from "recharts";
+import {
+  Anchor,
+  ArrowUpRight,
+  ArrowRight,
+  Activity,
+  BarChart3,
+  Box,
+  ChevronLeft,
+  ChevronRight,
+  Compass,
+  Database,
+  Download,
+  FlaskConical,
+  Pause,
+  Play,
+  Search,
+  ShieldCheck,
+  Ship,
+  SlidersHorizontal,
+  X,
+  BookOpen,
+  RefreshCw,
+} from "lucide-react";
+import { API, api, fmt } from "./lib/api";
+import { Panel, Chart, Notice, Stat } from "./components/Shared";
+import FleetMap from "./components/FleetMap";
+import ScenarioLab from "./components/ScenarioLab";
+import Benchmark from "./components/Benchmark";
+import Methodology from "./components/Methodology";
+import "leaflet/dist/leaflet.css";
+import "./index.css";
+const colors = [
+  "#18a88b",
+  "#5689db",
+  "#ae7ae0",
+  "#e6ac50",
+  "#f07f6d",
+  "#7398aa",
+  "#838e9e",
+  "#9db85e",
+];
+const tabs = [
+  ["Fleet overview", Compass],
+  ["Explore the data", BarChart3],
+  ["Scenario lab", SlidersHorizontal],
+  ["Model benchmark", FlaskConical],
+  ["Data & methodology", Database],
+];
 function App() {
-  const [loading, setLoading] = useState(false);
-  const [evaluation, setEvaluation] = useState(null);
-  const [hexagons] = useState(generateHexagons());
-  
-  // Animation state
-  const [isPlaying, setIsPlaying] = useState(false);
-  const simRef = useRef(null);
-
-  const [telemetry, setTelemetry] = useState({
-    mmsi: "MMSI_219019621",
-    lat: 57.2,
-    lon: 11.5,
-    distance_nm: 250.0,
-    speed: 14.5,
-    congestion: 20,
-    wind: 15.0,
-    waves: 1.2,
-    destination: "Gothenburg, SE"
-  });
-
-  const storm_lat = telemetry.lat - (telemetry.distance_nm / 60.0);
-  const storm_lon = telemetry.lon;
-
-  const renderMarkdown = (text) => {
-    return text.split('\n').map((line, i) => {
-      if (line.trim().startsWith('- ')) {
-        return <li key={i} dangerouslySetInnerHTML={{ __html: line.substring(2).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />;
-      }
-      return <p key={i} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />;
-    });
-  };
-
-  const handleEvaluate = async (currentTelemetry = telemetry) => {
-    setLoading(true);
-    try {
-      const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-      const API_URL = rawUrl.replace(/\/$/, "");
-      const response = await axios.post(`${API_URL}/api/evaluate_route`, currentTelemetry);
-      setEvaluation(response.data);
-      if (response.data.status === 'Rerouted') {
-        setIsPlaying(false); // Stop simulation if rerouted
-      }
-    } catch (error) {
-      console.error("Error evaluating route:", error);
-      setEvaluation({
-        status: "Error",
-        alert: "Could not connect to Agent Engine Backend.",
-        delay_risk_percent: 0,
-        fuel_estimate_tons: 0
-      });
-      setIsPlaying(false);
-    }
-    setLoading(false);
-  };
-
-  const updatePhysics = (dist) => {
-    const newCongestion = Math.min(100, Math.max(0, Math.round(100 - (dist / 3.0))));
-    const newWind = Math.round(15 + 105 * Math.pow(Math.E, -dist / 50.0));
-    const newWaves = Math.round(1.0 + 8.0 * Math.pow(Math.E, -dist / 60.0));
-    
-    return {
-      ...telemetry,
-      distance_nm: dist,
-      congestion: newCongestion,
-      wind: newWind,
-      waves: newWaves
-    };
-  };
-
-  const handleDistanceChange = (e) => {
-    setTelemetry(updatePhysics(parseFloat(e.target.value)));
-    setEvaluation(null); // reset evaluation when manually moved
-  };
-
-  // Playback Simulation Logic
+  const [tab, setTab] = useState(0),
+    [data, setData] = useState(null),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(true);
+  const [type, setType] = useState("All"),
+    [hour, setHour] = useState(23),
+    [playing, setPlaying] = useState(false),
+    [refresh, setRefresh] = useState(0);
+  const [query, setQuery] = useState(""),
+    [page, setPage] = useState(1),
+    [fleet, setFleet] = useState(null),
+    [detail, setDetail] = useState(null),
+    [selected, setSelected] = useState(null),
+    [flagged, setFlagged] = useState(false);
+  const [guide, setGuide] = useState(false),
+    [benchmark, setBenchmark] = useState(null);
   useEffect(() => {
-    if (isPlaying) {
-      simRef.current = setInterval(() => {
-        setTelemetry((prev) => {
-          const nextDist = prev.distance_nm - 5;
-          if (nextDist <= 140 && !evaluation) {
-            // Auto-trigger evaluation when entering danger zone
-            const updated = updatePhysics(nextDist);
-            handleEvaluate(updated);
-            return updated;
-          }
-          if (nextDist <= 10) {
-            setIsPlaying(false);
-            return prev;
-          }
-          return updatePhysics(nextDist);
-        });
-      }, 300);
-    } else {
-      clearInterval(simRef.current);
-    }
-    return () => clearInterval(simRef.current);
-  }, [isPlaying, evaluation]);
-
-  const RouteSegment = ({ p1, p2, color }) => {
-    const midLat = (p1[0] + p2[0]) / 2;
-    const midLon = (p1[1] + p2[1]) / 2;
-    const angle = Math.atan2(p1[0] - p2[0], p2[1] - p1[1]) * (180 / Math.PI);
-    
-    const arrowIcon = L.divIcon({
-      className: 'route-arrow',
-      html: `<div style="transform: rotate(${angle}deg); color: ${color}; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
-            </div>`,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12]
-    });
-
-    return (
-      <>
-        <Polyline positions={[p1, p2]} color={color} dashArray={color.includes('rgba') ? "5, 10" : ""} weight={color.includes('rgba') ? 3 : 4} className={color.includes('rgba') ? "" : "route-glow"} />
-        <Marker position={[midLat, midLon]} icon={arrowIcon} interactive={false} />
-      </>
+    let active = true;
+    setBusy(true);
+    setError("");
+    api(`/overview?vessel_type=${encodeURIComponent(type)}&hour=${hour}`)
+      .then((d) => {
+        if (active) setData(d);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      })
+      .finally(() => {
+        if (active) setBusy(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [type, hour, refresh]);
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(
+      () =>
+        api(
+          `/vessels?q=${encodeURIComponent(query)}&vessel_type=${encodeURIComponent(type)}&hour=${hour}&page=${page}&flagged=${flagged}`,
+        )
+          .then((d) => {
+            if (active) setFleet(d);
+          })
+          .catch((e) => {
+            if (active) setError(e.message);
+          }),
+      180,
     );
-  };
-
-  const plannedP1 = [56.8, 11.2];
-  const plannedP2 = [telemetry.lat, telemetry.lon];
-  const plannedP3 = [57.7, 11.9];
-
-  const rerouteP1 = [telemetry.lat, telemetry.lon];
-  const rerouteP2 = [57.4, 10.5];
-  const rerouteP3 = [57.8, 11.8];
-
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [query, type, hour, page, flagged, refresh]);
+  useEffect(() => {
+    let active = true;
+    if (!selected) {
+      setDetail(null);
+      return;
+    }
+    api(`/vessels/${selected}?hour=${hour}`)
+      .then((d) => {
+        if (active) setDetail(d);
+      })
+      .catch(() => {
+        if (active) setDetail(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selected, hour]);
+  useEffect(() => {
+    if (!playing) return;
+    const t = setInterval(
+      () =>
+        setHour((h) => {
+          if (h >= 23) {
+            setPlaying(false);
+            return 23;
+          }
+          return h + 1;
+        }),
+      1600,
+    );
+    return () => clearInterval(t);
+  }, [playing]);
+  useEffect(() => {
+    api("/benchmark")
+      .then(setBenchmark)
+      .catch((e) => setError(e.message));
+  }, [refresh]);
+  function changeType(v) {
+    setType(v);
+    setPage(1);
+    setSelected(null);
+  }
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [tab]);
+  useEffect(() => {
+    if (!guide) return;
+    const previous = document.activeElement;
+    const handler = (e) => {
+      if (e.key === "Escape") setGuide(false);
+      if (e.key === "Tab") {
+        const items = [...document.querySelectorAll(".guide-modal button")];
+        if (e.shiftKey && document.activeElement === items[0]) {
+          e.preventDefault();
+          items.at(-1)?.focus();
+        } else if (!e.shiftKey && document.activeElement === items.at(-1)) {
+          e.preventDefault();
+          items[0]?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", handler);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handler);
+      document.body.style.overflow = "";
+      previous?.focus();
+    };
+  }, [guide]);
+  const m = data?.metrics;
   return (
-    <div className="dashboard-container">
-      <header className="header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-        <div>
-          <h1>Agentic Geo-Spatial Intelligence</h1>
-          <div className="header-status">
-            <div className={`status-dot ${isPlaying ? 'pulse' : ''}`}></div>
-            {isPlaying ? 'Live Simulation Active' : 'Live Orchestration Engine'}
-          </div>
-        </div>
-        <button 
-          className="btn-primary" 
-          style={{background: isPlaying ? 'var(--accent-red)' : 'var(--accent-blue)'}}
-          onClick={() => { setIsPlaying(!isPlaying); setEvaluation(null); }}
+    <div className="app">
+      <aside className="sidebar">
+        <a
+          className="brand"
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            setTab(0);
+          }}
         >
-          {isPlaying ? '⏹ Stop Playback' : '▶ Play Simulation'}
-        </button>
-      </header>
-
-      <main className="main-content">
-        <div className="map-container">
-          <MapContainer center={[57.2, 11.5]} zoom={7} scrollWheelZoom={true}>
-            <TileLayer
-              attribution='&copy; OpenStreetMap contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            
-            {/* Global Fleet H3 Hexbin Layer */}
-            {hexagons.map((hex, i) => (
-              <Polygon key={`hex-${i}`} positions={hex.points} pathOptions={{ color: hex.color, fillColor: hex.color, fillOpacity: 0.4, weight: 1 }} />
-            ))}
-            
-            {/* Multi-Variate Weather Overlays */}
-            {/* Outer Gale Winds */}
-            <Circle center={[storm_lat, storm_lon]} radius={150 * 1852} pathOptions={{ color: 'var(--accent-yellow)', fillColor: 'var(--accent-yellow)', fillOpacity: 0.1, dashArray: "10, 10" }} />
-            {/* High Waves Zone */}
-            <Circle center={[storm_lat, storm_lon]} radius={100 * 1852} pathOptions={{ color: '#f97316', fillColor: '#f97316', fillOpacity: 0.2 }} />
-            {/* Hurricane Eye */}
-            <Circle center={[storm_lat, storm_lon]} radius={75 * 1852} pathOptions={{ color: 'var(--accent-red)', fillColor: 'var(--accent-red)', fillOpacity: 0.4 }}>
-              <Popup>Simulated Hurricane Center (Cat 4)</Popup>
-            </Circle>
-
-            {/* Current Vessel */}
-            <Marker position={[telemetry.lat, telemetry.lon]} icon={RadarIcon}>
-              <Popup>
-                <strong>{telemetry.mmsi}</strong><br/>
-                Speed: {telemetry.speed} kts<br/>
-                Heading to: {telemetry.destination}
-              </Popup>
-            </Marker>
-            
-            {/* Routes */}
-            <RouteSegment p1={plannedP1} p2={plannedP2} color="rgba(239, 68, 68, 0.7)" />
-            <RouteSegment p1={plannedP2} p2={plannedP3} color="rgba(239, 68, 68, 0.7)" />
-
-            {evaluation && evaluation.status === "Rerouted" && (
-              <>
-                <RouteSegment p1={rerouteP1} p2={rerouteP2} color="#10b981" />
-                <RouteSegment p1={rerouteP2} p2={rerouteP3} color="#10b981" />
-              </>
-            )}
-          </MapContainer>
-          
-          {loading && (
-            <div className="map-overlay">
-              <span className="loader"></span>
-              Orchestrating Autonomous Reroute...
-            </div>
-          )}
+          <span className="brand-symbol">
+            <Anchor size={24} />
+          </span>
+          <div>
+            AGI<span>MARITIME INTELLIGENCE</span>
+          </div>
+        </a>
+        <div className="workspace">
+          <span className="workspace-icon">
+            <Box size={18} />
+          </span>
+          <div>
+            Research workspace<small>Project / 2026</small>
+          </div>
+          <span className="workspace-tag">V2</span>
         </div>
-
-        <aside className="panel" style={{overflowY: 'auto'}}>
-          <div>
-            <h2 className="panel-title">Simulation Controls</h2>
-            <div className="slider-group">
-              <label>Distance to Storm: {telemetry.distance_nm} nm</label>
-              <input type="range" min="0" max="300" step="1" value={telemetry.distance_nm} onChange={handleDistanceChange} disabled={isPlaying} />
-            </div>
-            <div className="slider-group">
-              <label>Congestion Index: {telemetry.congestion}</label>
-              <input type="range" min="0" max="100" step="1" value={telemetry.congestion} readOnly />
-            </div>
-          </div>
-          
-          <hr style={{borderColor: 'var(--glass-border)', margin: '1rem 0'}} />
-
-          <div>
-            <h2 className="panel-title">Vessel Telemetry</h2>
-            <div className="telemetry-grid">
-              <div className="metric-card">
-                <div className="metric-label">SOG (Knots)</div>
-                <div className="metric-value">{telemetry.speed}</div>
-              </div>
-              <div className="metric-card">
-                <div className="metric-label">Congestion</div>
-                <div className="metric-value">{telemetry.congestion}</div>
-              </div>
-              <div className="metric-card">
-                <div className="metric-label">Wind (Kts)</div>
-                <div className="metric-value">{telemetry.wind}</div>
-              </div>
-              <div className="metric-card">
-                <div className="metric-label">Waves (m)</div>
-                <div className="metric-value">{telemetry.waves}</div>
-              </div>
-            </div>
-          </div>
-
-          <hr style={{borderColor: 'var(--glass-border)', margin: '1rem 0'}} />
-
-          <div>
-            <h2 className="panel-title">Agent Analysis</h2>
-            {evaluation ? (
-              <>
-                <div className="telemetry-grid" style={{marginBottom: '1rem'}}>
-                  <div className="metric-card">
-                    <div className="metric-label">Delay Risk</div>
-                    <div className="metric-value" style={{color: evaluation.delay_risk_percent > 70 ? 'var(--accent-red)' : 'var(--accent-green)'}}>
-                      {evaluation.delay_risk_percent}%
-                    </div>
-                  </div>
-                  <div className="metric-card">
-                    <div className="metric-label">Est. Fuel</div>
-                    <div className="metric-value">{evaluation.fuel_estimate_tons} T</div>
-                  </div>
-                  {evaluation.status === 'Rerouted' && (
-                    <div className="metric-card" style={{gridColumn: 'span 2'}}>
-                      <div className="metric-label">Fuel Saved (Avoiding Storm)</div>
-                      <div className="metric-value" style={{color: '#10b981'}}>
-                        + {Math.round(evaluation.fuel_estimate_tons * 0.42)} Tons
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className={`alert-box ${evaluation.status === 'Safe' ? 'safe' : ''}`}>
-                  <div className="alert-title">
-                    {evaluation.status === 'Rerouted' ? '⚠️ AI Reroute Executed' : '✅ Route Safe'}
-                  </div>
-                  <div className="alert-content">
-                    {evaluation.status === "Rerouted" && evaluation.alert.includes('- ') ? (
-                      <ul>{renderMarkdown(evaluation.alert)}</ul>
-                    ) : (
-                      renderMarkdown(evaluation.alert)
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <p style={{color: 'var(--text-secondary)', fontSize: '0.875rem'}}>
-                {isPlaying ? 'AI is monitoring trajectory...' : 'Awaiting orchestration engine execution.'}
-              </p>
-            )}
-          </div>
-          
-          <div style={{marginTop: '1rem'}}>
-            <button className="btn-primary" onClick={() => handleEvaluate(telemetry)} disabled={loading || isPlaying}>
-              {loading ? <span className="loader"></span> : "Manual AI Evaluation"}
+        <div className="nav-label">WORKSPACE</div>
+        <nav>
+          {tabs.map(([name, Icon], i) => (
+            <button
+              key={name}
+              className={tab === i ? "active" : ""}
+              onClick={() => {
+                setTab(i);
+                setPlaying(false);
+              }}
+            >
+              <Icon size={18} />
+              {name}
+              {i === 0 && (
+                <span className="nav-count">{m?.vessels ?? "—"}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="research-card">
+            <Compass size={21} />
+            <h4>Field notes & methodology.</h4>
+            <p>
+              Data sources, experimental design, and the project review guide.
+            </p>
+            <button onClick={() => setGuide(true)}>
+              Project walkthrough <ArrowUpRight size={15} />
             </button>
           </div>
-        </aside>
-      </main>
+          <div className="local-status">
+            <span className="dot" />
+            {error
+              ? "Connection needs attention"
+              : "Local research environment"}
+            <small>Historical data · 28 Aug 2023</small>
+          </div>
+        </div>
+      </aside>
+      <div className="workspace-main">
+        <header className="topbar">
+          <div>
+            Workspace <ChevronRight size={13} />
+            <strong>{tabs[tab][0]}</strong>
+          </div>
+          <div className="top-actions">
+            <span className="pill">
+              <span className="dot" />
+              HISTORICAL / 2023
+            </span>
+            <button
+              className="icon-btn"
+              aria-label="Open project walkthrough"
+              onClick={() => setGuide(true)}
+            >
+              <BookOpen size={18} />
+            </button>
+            <span className="avatar">AG</span>
+          </div>
+        </header>
+        <main>
+          <div className="page-heading">
+            <div>
+              <div className="eyebrow">AGENTIC GEO-SPATIAL INTELLIGENCE</div>
+              <h1>
+                {
+                  [
+                    "The fleet, in perspective.",
+                    "Exploratory analysis.",
+                    "Voyage scenarios.",
+                    "Forecast evaluation.",
+                    "Data provenance.",
+                  ][tab]
+                }
+              </h1>
+              <p>
+                {
+                  [
+                    "Gulf of Mexico · 28 August 2023 · Historical vessel observatory",
+                    "A closer look at vessel behavior across the selected historical window.",
+                    "Transparent assumptions. Explainable decisions. A human in control.",
+                    "Five approaches. One held-out cohort. Reproducible results.",
+                    "Trace the journey from raw AIS messages to analytical insight.",
+                  ][tab]
+                }
+              </p>
+            </div>
+            <a
+              className="button secondary export"
+              href={`${API}/api/export?vessel_type=${encodeURIComponent(type)}&hour=${hour}`}
+            >
+              <Download size={15} />
+              Export data
+            </a>
+          </div>
+          {error && (
+            <div className="error" role="alert">
+              {error}
+              <button onClick={() => setRefresh((r) => r + 1)}>
+                <RefreshCw size={14} />
+                Retry
+              </button>
+            </div>
+          )}
+          {!data ? (
+            <div className="empty">
+              <RefreshCw className={busy ? "spin" : ""} />
+              <h3>
+                {busy
+                  ? "Reading the research dataset…"
+                  : "The dataset is not available."}
+              </h3>
+              <p>
+                Start the backend and build the dataset using the README
+                instructions.
+              </p>
+            </div>
+          ) : (
+            <>
+              {(tab === 0 || tab === 1) && (
+                <>
+                  <div className="filter-row">
+                    <div className="filter-controls">
+                      <span className="filter-caption">
+                        <SlidersHorizontal size={15} />
+                        View
+                      </span>
+                      <select
+                        aria-label="Vessel type"
+                        value={type}
+                        onChange={(e) => changeType(e.target.value)}
+                      >
+                        {[
+                          "All",
+                          "Cargo",
+                          "Tanker",
+                          "Passenger",
+                          "Fishing",
+                          "Tug",
+                          "Sailing",
+                          "Pleasure",
+                          "Other",
+                        ].map((t) => (
+                          <option key={t} value={t}>
+                            {t === "All" ? "All vessel types" : t}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="date-filter">
+                        28 Aug 2023 <span>·</span> 00:00–
+                        {String(hour).padStart(2, "0")}:59 UTC
+                      </span>
+                    </div>
+                    <span className="muted small">
+                      {busy ? "Updating…" : "Historical snapshot"}
+                      <span className={`dot ${busy ? "amber" : ""}`} />
+                    </span>
+                  </div>
+                  <div className="stats">
+                    <Stat
+                      label="Vessels observed"
+                      value={fmt(m.vessels)}
+                      icon={Ship}
+                      note="Distinct MMSI identifiers"
+                    />
+                    <Stat
+                      label="AIS observations"
+                      value={fmt(m.observations)}
+                      icon={Activity}
+                      note="Cleaned & sampled messages"
+                    />
+                    <Stat
+                      label="Mean observed speed"
+                      value={m.mean_speed}
+                      unit="kn"
+                      icon={Compass}
+                      note="Across the selected observations"
+                    />
+                    <Stat
+                      label="Outlier vessels"
+                      value={fmt(m.flagged)}
+                      icon={ShieldCheck}
+                      note="Latest reports · review suggested"
+                      tone="amber-text"
+                    />
+                  </div>
+                </>
+              )}
+              {tab === 0 && (
+                <>
+                  <div className="overview-grid">
+                    <Panel
+                      title="Fleet activity"
+                      subtitle="Gulf of Mexico & Florida coast"
+                      action={<span className="badge">H3 RESOLUTION 5</span>}
+                    >
+                      <FleetMap
+                        data={data}
+                        detail={detail}
+                        onSelect={setSelected}
+                      />
+                      <div className="timeline">
+                        <button
+                          className="icon-btn"
+                          aria-label={
+                            playing ? "Pause replay" : "Play historical replay"
+                          }
+                          onClick={() => {
+                            if (hour === 23) setHour(0);
+                            setPlaying(!playing);
+                          }}
+                        >
+                          {playing ? <Pause size={17} /> : <Play size={17} />}
+                        </button>
+                        <span>HISTORICAL REPLAY</span>
+                        <input
+                          aria-label="Replay hour UTC"
+                          type="range"
+                          min="0"
+                          max="23"
+                          value={hour}
+                          onChange={(e) => {
+                            setHour(+e.target.value);
+                            setPage(1);
+                            setPlaying(false);
+                          }}
+                        />
+                        <strong>{String(hour).padStart(2, "0")}:59</strong>
+                        <span>UTC</span>
+                      </div>
+                    </Panel>
+                    <div className="insight-column">
+                      <Panel
+                        title="Fleet composition"
+                        subtitle="Distinct vessels by type"
+                      >
+                        <div className="composition-total">
+                          {fmt(m.vessels)}
+                          <span>vessels in this window</span>
+                        </div>
+                        <div className="stacked-bar">
+                          {[...data.types]
+                            .sort((a, b) => b.vessels - a.vessels)
+                            .map((t, i) => (
+                              <div
+                                key={t.vessel_type}
+                                style={{
+                                  width: `${(t.vessels / Math.max(1, m.vessels)) * 100}%`,
+                                  background: colors[i % colors.length],
+                                }}
+                                title={`${t.vessel_type}: ${t.vessels}`}
+                              />
+                            ))}
+                        </div>
+                        <div className="composition-list">
+                          {[...data.types]
+                            .sort((a, b) => b.vessels - a.vessels)
+                            .map((t, i) => (
+                              <div key={t.vessel_type}>
+                                <span>
+                                  <i style={{ background: colors[i] }} />
+                                  {t.vessel_type}
+                                </span>
+                                <strong>
+                                  {t.vessels}
+                                  <small>
+                                    {Math.round(
+                                      (t.vessels / Math.max(1, m.vessels)) *
+                                        100,
+                                    )}
+                                    %
+                                  </small>
+                                </strong>
+                              </div>
+                            ))}
+                        </div>
+                      </Panel>
+                      <div className="insight-card">
+                        <span className="eyebrow">
+                          <Compass size={14} /> RESEARCH NOTE
+                        </span>
+                        <h3>Reading the density layer.</h3>
+                        <p>
+                          Density counts unique vessels in each hexagon.
+                          Frequent transmitters do not automatically become the
+                          busiest locations.
+                        </p>
+                        <button onClick={() => setTab(4)}>
+                          Explore the methodology <ArrowRight size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <Panel
+                    title="Vessel directory"
+                    subtitle="Select a vessel to inspect its recorded trajectory and speed estimate."
+                    action={
+                      <div className="table-actions">
+                        <label className="check-label">
+                          <input
+                            type="checkbox"
+                            checked={flagged}
+                            onChange={(e) => {
+                              setFlagged(e.target.checked);
+                              setPage(1);
+                            }}
+                          />
+                          Outliers only
+                        </label>
+                        <div className="search">
+                          <Search size={15} />
+                          <input
+                            aria-label="Search vessels"
+                            placeholder="Search name or MMSI"
+                            value={query}
+                            onChange={(e) => {
+                              setQuery(e.target.value);
+                              setPage(1);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    }
+                  >
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>VESSEL / MMSI</th>
+                            <th>TYPE</th>
+                            <th>SPEED</th>
+                            <th>LAST REPORT · UTC</th>
+                            <th>SCREENING</th>
+                            <th />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fleet?.items.map((v) => (
+                            <tr
+                              key={v.mmsi}
+                              className={
+                                selected === v.mmsi ? "selected-row" : ""
+                              }
+                              onClick={() => setSelected(v.mmsi)}
+                            >
+                              <td>
+                                <div className="vessel-cell">
+                                  <span className="ship-icon">
+                                    <Ship size={17} />
+                                  </span>
+                                  <div>
+                                    <strong>{v.name}</strong>
+                                    <small>{v.mmsi}</small>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>{v.vessel_type}</td>
+                              <td className="numeric">
+                                {v.speed.toFixed(1)}{" "}
+                                <span className="muted">kn</span>
+                              </td>
+                              <td>{v.timestamp.slice(11)}</td>
+                              <td>
+                                <span
+                                  className={`status ${v.anomaly ? "review" : ""}`}
+                                >
+                                  <span className="dot" />
+                                  {v.anomaly
+                                    ? "Review suggested"
+                                    : "Typical pattern"}
+                                </span>
+                              </td>
+                              <td>
+                                <button
+                                  aria-label={`Inspect ${v.name}`}
+                                  className="icon-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelected(v.mmsi);
+                                  }}
+                                >
+                                  <ArrowUpRight size={16} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {fleet?.total === 0 && (
+                        <div className="empty">
+                          No vessels match these filters.
+                        </div>
+                      )}
+                    </div>
+                    <div className="pagination">
+                      <span>
+                        {fmt(fleet?.total)} vessels · page {page} of{" "}
+                        {Math.max(1, Math.ceil((fleet?.total || 0) / 12))}
+                      </span>
+                      <div>
+                        <button
+                          aria-label="Previous page"
+                          disabled={page === 1}
+                          onClick={() => setPage((p) => p - 1)}
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <button
+                          aria-label="Next page"
+                          disabled={page * 12 >= (fleet?.total || 0)}
+                          onClick={() => setPage((p) => p + 1)}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </Panel>
+                  {detail && (
+                    <Panel
+                      className="detail-panel"
+                      title={detail.vessel.name}
+                      subtitle={`${detail.vessel.mmsi} · ${detail.track.length} observations in selected window`}
+                      action={
+                        <button
+                          className="icon-btn"
+                          aria-label="Close vessel detail"
+                          onClick={() => setSelected(null)}
+                        >
+                          <X size={18} />
+                        </button>
+                      }
+                    >
+                      <div className="detail-grid">
+                        <Chart>
+                          <LineChart data={detail.track}>
+                            {chartGrid}
+                            <XAxis
+                              dataKey="timestamp"
+                              tickFormatter={(s) => s.slice(11, 16)}
+                              {...axis}
+                            />
+                            <YAxis {...axis} unit=" kn" />
+                            <Tooltip />
+                            <Line
+                              type="monotone"
+                              dataKey="speed"
+                              stroke="#189e8b"
+                              dot={false}
+                            />
+                          </LineChart>
+                        </Chart>
+                        <div className="prediction">
+                          <span className="eyebrow">
+                            NEXT OBSERVED SPEED ESTIMATE
+                          </span>
+                          <strong>
+                            {detail.predicted_next_speed ?? "—"}{" "}
+                            <small>kn</small>
+                          </strong>
+                          <p>{detail.prediction_note}</p>
+                        </div>
+                      </div>
+                    </Panel>
+                  )}
+                </>
+              )}
+              {tab === 1 && (
+                <>
+                  <div className="chart-grid">
+                    <Panel
+                      title="Activity over the day"
+                      subtitle="Observation counts per UTC hour"
+                    >
+                      <Chart>
+                        <AreaChart data={data.hourly}>
+                          {chartGrid}
+                          <XAxis dataKey="hour" {...axis} />
+                          <YAxis {...axis} />
+                          <Tooltip />
+                          <Area
+                            type="monotone"
+                            dataKey="observations"
+                            stroke="#179e8a"
+                            fill="#e2f3ee"
+                            strokeWidth={2}
+                          />
+                        </AreaChart>
+                      </Chart>
+                    </Panel>
+                    <Panel
+                      title="Speed distribution"
+                      subtitle="Knots · zero-speed reports are retained"
+                    >
+                      <Chart>
+                        <BarChart data={data.histogram}>
+                          {chartGrid}
+                          <XAxis dataKey="bin" {...axis} />
+                          <YAxis {...axis} />
+                          <Tooltip />
+                          <Bar
+                            dataKey="count"
+                            fill="#5689db"
+                            radius={[4, 4, 0, 0]}
+                          />
+                        </BarChart>
+                      </Chart>
+                    </Panel>
+                    <Panel
+                      title="Weather proximity & speed"
+                      subtitle="Deterministic sample of up to 400 observations"
+                    >
+                      <Chart>
+                        <ScatterChart>
+                          {chartGrid}
+                          <XAxis
+                            dataKey="storm_distance_nm"
+                            name="Storm distance"
+                            unit=" nm"
+                            type="number"
+                            {...axis}
+                          />
+                          <YAxis
+                            dataKey="speed"
+                            name="Speed"
+                            unit=" kn"
+                            type="number"
+                            {...axis}
+                          />
+                          <Tooltip cursor={{ strokeDasharray: "3 3" }} />
+                          <Scatter
+                            data={data.scatter}
+                            fill="#26a48f"
+                            fillOpacity={0.55}
+                          />
+                        </ScatterChart>
+                      </Chart>
+                      <Notice>
+                        Association is not causation. Best-track storm distance
+                        describes historical proximity; it does not prove
+                        weather caused a speed change.
+                      </Notice>
+                    </Panel>
+                    <Panel
+                      title="Feature correlations"
+                      subtitle="Pearson correlation · pairwise complete observations"
+                    >
+                      <div className="correlation">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th />
+                              {data.correlation.columns.map((c) => (
+                                <th key={c}>
+                                  {c.replace("storm_distance_nm", "storm nm")}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.correlation.values.map((row, i) => (
+                              <tr key={i}>
+                                <th>
+                                  {data.correlation.columns[i].replace(
+                                    "storm_distance_nm",
+                                    "storm nm",
+                                  )}
+                                </th>
+                                {row.map((v, j) => (
+                                  <td
+                                    key={j}
+                                    style={{
+                                      background:
+                                        v === null
+                                          ? "#f5f6f8"
+                                          : v >= 0
+                                            ? `rgba(24,168,139,${Math.abs(v) * 0.6 + 0.03})`
+                                            : `rgba(86,137,219,${Math.abs(v) * 0.6 + 0.03})`,
+                                    }}
+                                  >
+                                    {v === null ? "N/A" : v.toFixed(2)}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Panel>
+                  </div>
+                  <Notice>
+                    Use these plots to form hypotheses, then test them on
+                    independent data. The cohort is a reproducible subset of one
+                    day, not a representative sample of global shipping.
+                  </Notice>
+                </>
+              )}
+              {tab === 2 && <ScenarioLab />}
+              {tab === 3 && benchmark && <Benchmark report={benchmark} />}
+              {tab === 4 && (
+                <Methodology data={data} onGuide={() => setGuide(true)} />
+              )}
+            </>
+          )}
+          <footer>
+            <span>
+              <Anchor size={13} /> Agentic Geo-Spatial Intelligence
+            </span>
+            <span>NOAA AIS / NHC HURDAT2 · Historical research workspace</span>
+          </footer>
+        </main>
+      </div>
+      {guide && (
+        <div className="modal-backdrop" onClick={() => setGuide(false)}>
+          <section
+            className="guide-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Project walkthrough"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              autoFocus
+              className="icon-btn close"
+              aria-label="Close walkthrough"
+              onClick={() => setGuide(false)}
+            >
+              <X />
+            </button>
+            <span className="eyebrow">YOUR FIVE-MINUTE PROJECT REVIEW</span>
+            <h2>
+              From a ship’s signal
+              <br />
+              to an explainable decision.
+            </h2>
+            {[
+              [
+                "01",
+                "Start with the evidence",
+                "AIS is a ship’s broadcast identity, position, speed, and course. We clean a real NOAA file and keep a reproducible vessel cohort.",
+              ],
+              [
+                "02",
+                "Explore before predicting",
+                "Inspect distributions, missing values, geographic density, and individual trajectories. A map is useful only when its source and time window are clear.",
+              ],
+              [
+                "03",
+                "Test a measurable question",
+                "Can a model estimate the next reported speed better than simply carrying the current speed forward? Vessels in the test set never appear in training.",
+              ],
+              [
+                "04",
+                "Explain the decision",
+                "The scenario lab compares explicit weather, speed, distance, fuel, and emissions assumptions. Its agents are deterministic stages, not an LLM or an autonomous navigation system.",
+              ],
+              [
+                "05",
+                "Discuss the limits",
+                "One day, variable forecast intervals, retrospective weather, and no verified delay outcomes. These define exactly what future research must address.",
+              ],
+            ].map(([n, t, p]) => (
+              <div className="guide-step" key={n}>
+                <span>{n}</span>
+                <div>
+                  <h3>{t}</h3>
+                  <p>{p}</p>
+                </div>
+              </div>
+            ))}
+            <button className="button primary" onClick={() => setGuide(false)}>
+              Let’s explore <ArrowRight size={16} />
+            </button>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,3 +1,5 @@
+> Historical preview. Current measured counts, sampling rules, and provenance are in `data/atlas/manifest.json` and the Data & methodology view. Use `docs/REVIEW_GUIDE.md` for the current project explanation.
+
 # Dataset Preview (NOAA MarineCadastre)
 
 If you need to quickly show your professor what the raw dataset looks like without launching Excel, you can use this preview.

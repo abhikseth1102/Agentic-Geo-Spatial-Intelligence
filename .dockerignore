@@ -1,0 +1,16 @@
+.git
+.env
+.runtime
+.venv
+venv
+venv2
+frontend/node_modules
+frontend/dist
+data/*.csv
+data/*.zip
+data/*.txt
+data/atlas/*.sqlite*
+output
+docss
+eda_dataset
+__pycache__
